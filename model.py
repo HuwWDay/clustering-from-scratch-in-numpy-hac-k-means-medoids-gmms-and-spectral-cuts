@@ -118,3 +118,54 @@ def contingency_table(labels_pred, labels_true):
 
     return table
 
+# Step 3 - pair_counts
+import numpy as np
+
+
+def pair_counts(N):
+    """Compute pair counting quantities (TP, FP, FN, TN) from a contingency table.
+
+    A pair of distinct objects is:
+      - TP: in the same predicted cluster AND in the same true class
+      - FP: in the same predicted cluster BUT in different true classes
+      - FN: in different predicted clusters BUT in the same true class
+      - TN: in different predicted clusters AND in different true classes
+
+    Parameters
+    ----------
+    N : array-like of shape (R, C)
+        Contingency table where N[i, j] is the count of items in predicted
+        cluster i and true class j.
+
+    Returns
+    -------
+    TP, FP, FN, TN : tuple of int
+    """
+    N = np.asarray(N, dtype=np.int64)
+
+    def comb2(arr):
+        """Vectorized n * (n - 1) // 2."""
+        return int(np.sum(arr * (arr - 1) // 2))
+
+    # Total number of items n, and total number of pairs comb(n, 2)
+    n_samples = int(np.sum(N))
+    total_pairs = n_samples * (n_samples - 1) // 2
+
+    # Pairs in the same predicted cluster (row sums) = TP + FP
+    row_sums = np.sum(N, axis=1)
+    same_pred = comb2(row_sums)
+
+    # Pairs in the same true class (column sums) = TP + FN
+    col_sums = np.sum(N, axis=0)
+    same_true = comb2(col_sums)
+
+    # Pairs in both the same predicted cluster and same true class = TP
+    TP = comb2(N)
+
+    # Derive remaining quantities
+    FP = same_pred - TP
+    FN = same_true - TP
+    TN = total_pairs - TP - FP - FN
+
+    return int(TP), int(FP), int(FN), int(TN)
+

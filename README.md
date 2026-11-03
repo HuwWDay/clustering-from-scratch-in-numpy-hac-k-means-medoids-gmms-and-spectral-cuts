@@ -12,6 +12,7 @@ python scaffold.py
 
 - [x] **1.** pairwise_distances
 - [x] **2.** contingency_table
+- [x] **3.** pair_counts
 
 ---
 
