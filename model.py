@@ -169,3 +169,80 @@ def pair_counts(N):
 
     return int(TP), int(FP), int(FN), int(TN)
 
+# Step 4 - cluster_scores
+import numpy as np
+
+
+def cluster_scores(labels_pred, labels_true):
+    """Compute external evaluation scores between predicted clusterings and true labels.
+
+    Returns a dict of floats containing:
+      - 'purity': (1 / n) * sum_i max_j N_ij
+      - 'rand': (TP + TN) / (TP + FP + FN + TN)
+      - 'ari': Adjusted Rand Index
+      - 'mi': Mutual Information I(U, V) in nats
+      - 'nmi': Normalized Mutual Information 2 * I(U, V) / (H(U) + H(V))
+    """
+    N = contingency_table(labels_pred, labels_true)
+    TP, FP, FN, TN = pair_counts(N)
+
+    n_samples = float(np.sum(N))
+
+    # 1. Purity: (1 / n) * sum_i max_j N_ij
+    purity = float(np.sum(np.max(N, axis=1)) / n_samples)
+
+    # 2. Rand Index: (TP + TN) / Total Pairs
+    total_pairs = float(TP + FP + FN + TN)
+    rand = float((TP + TN) / total_pairs) if total_pairs > 0 else 1.0
+
+    # 3. Adjusted Rand Index (ARI)
+    # E = (TP + FP) * (TP + FN) / total_pairs
+    same_pred = TP + FP
+    same_true = TP + FN
+    expected_index = float(same_pred * same_true) / total_pairs if total_pairs > 0 else 0.0
+    max_index = 0.5 * (same_pred + same_true)
+    ari_denom = max_index - expected_index
+
+    if ari_denom == 0.0:
+        ari = 1.0
+    else:
+        ari = float((TP - expected_index) / ari_denom)
+
+    # 4. Mutual Information (MI) and Normalized Mutual Information (NMI)
+    # Row and column marginal sums
+    row_sums = np.sum(N, axis=1)  # shape: (R,)
+    col_sums = np.sum(N, axis=0)  # shape: (C,)
+
+    # Only compute log terms for non-zero entries (0 * log(0) = 0)
+    nz_i, nz_j = np.nonzero(N)
+    nz_vals = N[nz_i, nz_j].astype(float)
+
+    # I(U, V) = sum_{i,j} (N_ij / n) * log((n * N_ij) / (a_i * b_j))
+    #         = sum_{i,j} (N_ij / n) * (log(n * N_ij) - log(a_i) - log(b_j))
+    mi_terms = (nz_vals / n_samples) * (
+        np.log(n_samples * nz_vals) - np.log(row_sums[nz_i]) - np.log(col_sums[nz_j])
+    )
+    mi = float(np.sum(mi_terms))
+    mi = max(0.0, mi)  # Clip potential negative rounding noise
+
+    # Entropies H(U) and H(V) in nats
+    p_u = row_sums[row_sums > 0].astype(float) / n_samples
+    h_u = -np.sum(p_u * np.log(p_u))
+
+    p_v = col_sums[col_sums > 0].astype(float) / n_samples
+    h_v = -np.sum(p_v * np.log(p_v))
+
+    denom_nmi = 0.5 * (h_u + h_v)
+    if denom_nmi == 0.0:
+        nmi = 1.0
+    else:
+        nmi = float(mi / denom_nmi)
+
+    return {
+        "purity": purity,
+        "rand": rand,
+        "ari": ari,
+        "mi": mi,
+        "nmi": nmi,
+    }
+
