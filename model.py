@@ -91,3 +91,30 @@ def pairwise_distances(X, metric="euclidean"):
 
     return dist
 
+# Step 2 - contingency_table
+import numpy as np
+
+
+def contingency_table(labels_pred, labels_true):
+    """Return the integer contingency table N where N[i, j] is the number of
+
+    objects assigned to predicted cluster i that belong to true class j.
+
+    Rows and columns are ordered by the sorted distinct values of labels_pred
+    and labels_true, respectively.
+    """
+    labels_pred = np.asarray(labels_pred)
+    labels_true = np.asarray(labels_true)
+
+    # 1. Map each label array to 0-based integer indices based on sorted unique values
+    unique_pred, pred_idx = np.unique(labels_pred, return_inverse=True)
+    unique_true, true_idx = np.unique(labels_true, return_inverse=True)
+
+    # 2. Allocate an integer array of shape (n_pred_clusters, n_true_classes)
+    table = np.zeros((len(unique_pred), len(unique_true)), dtype=int)
+
+    # 3. Accumulate counts at each (pred_idx, true_idx) pair using np.add.at
+    np.add.at(table, (pred_idx, true_idx), 1)
+
+    return table
+

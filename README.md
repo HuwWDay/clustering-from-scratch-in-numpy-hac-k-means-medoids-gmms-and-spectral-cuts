@@ -11,6 +11,7 @@ python scaffold.py
 ## Steps
 
 - [x] **1.** pairwise_distances
+- [x] **2.** contingency_table
 
 ---
 
