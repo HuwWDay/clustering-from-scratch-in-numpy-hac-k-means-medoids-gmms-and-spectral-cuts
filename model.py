@@ -246,3 +246,117 @@ def cluster_scores(labels_pred, labels_true):
         "nmi": nmi,
     }
 
+# Step 5 - agglomerate
+import numpy as np
+
+
+def agglomerate(D, linkage="average"):
+    """Perform hierarchical agglomerative clustering on a dissimilarity matrix D.
+
+    Parameters
+    ----------
+    D : array-like of shape (N, N)
+        Pairwise dissimilarity matrix. Will not be modified.
+    linkage : {"single", "complete", "average"}, default="average"
+        The linkage criterion determining cluster distance.
+
+    Returns
+    -------
+    Z : ndarray of shape (N - 1, 4), dtype float
+        Linkage matrix where row t is [a, b, height, size] with a < b,
+        representing the clusters merged at step t.
+    """
+    if linkage not in ("single", "complete", "average"):
+        raise ValueError(
+            f"Unknown linkage '{linkage}'. Expected 'single', 'complete', or 'average'."
+        )
+
+    D = np.asarray(D, dtype=float)
+    if D.ndim != 2 or D.shape[0] != D.shape[1]:
+        raise ValueError("D must be a square 2D matrix.")
+
+    N = D.shape[0]
+    if N <= 1:
+        return np.empty((0, 4), dtype=float)
+
+    # Work on a copy of dissimilarities between active clusters
+    dist = D.copy()
+    np.fill_diagonal(dist, np.inf)
+
+    # Track active cluster IDs and sizes
+    cluster_ids = np.arange(N, dtype=int)
+    cluster_sizes = np.ones(N, dtype=float)
+
+    Z = np.empty((N - 1, 4), dtype=float)
+
+    for t in range(N - 1):
+        k = N - t  # Current number of active clusters
+        sub_dist = dist[:k, :k]
+
+        min_val = np.min(sub_dist)
+
+        # Inspect upper triangle of active submatrix for min distance
+        i_indices, j_indices = np.where(np.triu(sub_dist, k=1) == min_val)
+
+        # Map active slot indices to global cluster IDs
+        c_i = cluster_ids[i_indices]
+        c_j = cluster_ids[j_indices]
+
+        a_cand = np.minimum(c_i, c_j)
+        b_cand = np.maximum(c_i, c_j)
+
+        # Tie-breaker: smallest a, then smallest b
+        tie_order = np.lexsort((b_cand, a_cand))
+        best_idx = tie_order[0]
+
+        slot_a = i_indices[best_idx]
+        slot_b = j_indices[best_idx]
+        if slot_a > slot_b:
+            slot_a, slot_b = slot_b, slot_a
+
+        id_a = cluster_ids[slot_a]
+        id_b = cluster_ids[slot_b]
+        if id_a > id_b:
+            id_a, id_b = id_b, id_a
+
+        size_a = cluster_sizes[slot_a]
+        size_b = cluster_sizes[slot_b]
+        new_size = size_a + size_b
+        new_id = N + t
+
+        Z[t] = [float(id_a), float(id_b), float(min_val), float(new_size)]
+
+        # Distance updates to remaining clusters
+        mask = np.ones(k, dtype=bool)
+        mask[[slot_a, slot_b]] = False
+
+        d_a = sub_dist[slot_a, mask]
+        d_b = sub_dist[slot_b, mask]
+
+        if linkage == "single":
+            d_new = np.minimum(d_a, d_b)
+        elif linkage == "complete":
+            d_new = np.maximum(d_a, d_b)
+        elif linkage == "average":
+            d_new = (size_a * d_a + size_b * d_b) / new_size
+
+        # Update slot_a with merged cluster data inside the active slice
+        cluster_ids[slot_a] = new_id
+        cluster_sizes[slot_a] = new_size
+
+        sub_dist[slot_a, mask] = d_new
+        sub_dist[mask, slot_a] = d_new
+        sub_dist[slot_a, slot_a] = np.inf
+
+        # Swap last active slot (k - 1) into slot_b to shrink active matrix to k - 1
+        last_slot = k - 1
+        if slot_b != last_slot:
+            cluster_ids[slot_b] = cluster_ids[last_slot]
+            cluster_sizes[slot_b] = cluster_sizes[last_slot]
+
+            sub_dist[slot_b, :k] = sub_dist[last_slot, :k]
+            sub_dist[:k, slot_b] = sub_dist[:k, last_slot]
+            sub_dist[slot_b, slot_b] = np.inf
+
+    return Z
+
