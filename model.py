@@ -360,3 +360,83 @@ def agglomerate(D, linkage="average"):
 
     return Z
 
+# Step 6 - cut_tree
+import numpy as np
+
+
+def cut_tree(Z, n_clusters=None, height=None):
+    """Cut a hierarchical clustering tree Z into flat cluster labels.
+
+    Parameters
+    ----------
+    Z : array-like of shape (N - 1, 4)
+        Linkage matrix as returned by agglomerate / scipy.cluster.hierarchy.linkage.
+    n_clusters : int, optional
+        Desired number of clusters (1 <= n_clusters <= N).
+    height : float, optional
+        Maximum threshold on merge height. Merges with height <= height are retained.
+
+    Returns
+    -------
+    labels : ndarray of shape (N,), dtype int
+        Cluster assignments with labels 0, 1, ... numbered by first appearance.
+    """
+    # 1. Validate arguments: exactly one must be provided
+    if (n_clusters is None and height is None) or (
+        n_clusters is not None and height is not None
+    ):
+        raise ValueError("Exactly one of 'n_clusters' or 'height' must be specified.")
+
+    Z = np.asarray(Z, dtype=float)
+    N = Z.shape[0] + 1  # Total original objects
+
+    if N == 1:
+        return np.zeros(1, dtype=int)
+
+    # 2. Determine how many merges from the beginning of Z to apply
+    if n_clusters is not None:
+        if not (1 <= n_clusters <= N):
+            raise ValueError(f"'n_clusters' must be between 1 and {N}, got {n_clusters}")
+        n_merges = N - n_clusters
+    else:
+        # Keep all merges where merge height <= height
+        n_merges = int(np.sum(Z[:, 2] <= height))
+
+    # 3. Disjoint-Set / Union-Find structure to trace cluster membership
+    parent = list(range(2 * N))
+
+    def find(i):
+        path = []
+        while parent[i] != i:
+            path.append(i)
+            i = parent[i]
+        for node in path:
+            parent[node] = i
+        return i
+
+    # Apply the first n_merges
+    for t in range(n_merges):
+        a = int(Z[t, 0])
+        b = int(Z[t, 1])
+        new_id = N + t
+        root_a = find(a)
+        root_b = find(b)
+        parent[root_a] = new_id
+        parent[root_b] = new_id
+
+    # 4. Find the root for each original object 0 .. N - 1
+    roots = [find(i) for i in range(N)]
+
+    # 5. Assign labels 0, 1, ... in order of first appearance
+    root_to_label = {}
+    labels = np.empty(N, dtype=int)
+    current_label = 0
+
+    for i, r in enumerate(roots):
+        if r not in root_to_label:
+            root_to_label[r] = current_label
+            current_label += 1
+        labels[i] = root_to_label[r]
+
+    return labels
+

@@ -15,6 +15,7 @@ python scaffold.py
 - [x] **3.** pair_counts
 - [x] **4.** cluster_scores
 - [x] **5.** agglomerate
+- [x] **6.** cut_tree
 
 ---
 
