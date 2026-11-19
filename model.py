@@ -525,3 +525,37 @@ def single_link_mst(D):
 
     return Z
 
+# Step 8 - same_hierarchy
+import numpy as np
+
+
+def same_hierarchy(Z1, Z2):
+    """Return True if two linkage matrices Z1 and Z2 induce the exact same tree topology.
+
+    Two linkage matrices describe the same hierarchy iff they generate the same
+    collection of non-singleton clusters (sets of original leaf objects),
+    ignoring merge heights, merge ordering of disjoint subtrees, and intermediate IDs.
+    """
+    Z1 = np.asarray(Z1, dtype=float)
+    Z2 = np.asarray(Z2, dtype=float)
+
+    if Z1.shape != Z2.shape:
+        return False
+
+    def extract_clusters(Z):
+        N = Z.shape[0] + 1
+        # Map each cluster ID (0 .. 2N-2) to its frozenset of original leaf indices
+        members = {i: frozenset([i]) for i in range(N)}
+        clusters = set()
+
+        for t in range(Z.shape[0]):
+            a = int(Z[t, 0])
+            b = int(Z[t, 1])
+            merged = members[a] | members[b]
+            members[N + t] = merged
+            clusters.add(merged)
+
+        return clusters
+
+    return bool(extract_clusters(Z1) == extract_clusters(Z2))
+
