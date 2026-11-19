@@ -18,6 +18,7 @@ python scaffold.py
 - [x] **6.** cut_tree
 - [x] **7.** single_link_mst
 - [x] **8.** same_hierarchy
+- [x] **9.** linkage_report
 
 ---
 

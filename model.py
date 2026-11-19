@@ -559,3 +559,41 @@ def same_hierarchy(Z1, Z2):
 
     return bool(extract_clusters(Z1) == extract_clusters(Z2))
 
+# Step 9 - linkage_report
+import numpy as np
+
+
+def max_diameter(D, labels):
+    """Return the largest dissimilarity between any two objects in the same cluster."""
+    D = np.asarray(D, dtype=float)
+    labels = np.asarray(labels)
+
+    largest_diam = 0.0
+    for lbl in np.unique(labels):
+        idx = np.where(labels == lbl)[0]
+        if len(idx) > 1:
+            sub_D = D[np.ix_(idx, idx)]
+            largest_diam = max(largest_diam, float(np.max(sub_D)))
+
+    return float(largest_diam)
+
+
+def linkage_report(D, K):
+    """Compare single, complete, and average linkage trees cut into K clusters."""
+    D = np.asarray(D, dtype=float)
+    report = {}
+
+    for linkage in ("single", "complete", "average"):
+        Z = agglomerate(D, linkage=linkage)
+        labels = cut_tree(Z, n_clusters=K)
+        _, counts = np.unique(labels, return_counts=True)
+
+        report[linkage] = {
+            "top_height": float(Z[-1, 2]) if Z.shape[0] > 0 else 0.0,
+            "largest": int(np.max(counts)),
+            "singletons": int(np.sum(counts == 1)),
+            "max_diameter": max_diameter(D, labels),
+        }
+
+    return report
+
