@@ -440,3 +440,88 @@ def cut_tree(Z, n_clusters=None, height=None):
 
     return labels
 
+# Step 7 - single_link_mst
+import numpy as np
+
+
+def single_link_mst(D):
+    """Compute the single-link hierarchical clustering tree in O(N^2) time via Prim's MST.
+
+    Parameters
+    ----------
+    D : array-like of shape (N, N)
+        Pairwise dissimilarity matrix.
+
+    Returns
+    -------
+    Z : ndarray of shape (N - 1, 4), dtype float
+        Linkage matrix where row t is [a, b, height, size] with a < b,
+        representing the clusters merged at step t.
+    """
+    D = np.asarray(D, dtype=float)
+    if D.ndim != 2 or D.shape[0] != D.shape[1]:
+        raise ValueError("D must be a square 2D matrix.")
+
+    N = D.shape[0]
+    if N <= 1:
+        return np.empty((0, 4), dtype=float)
+
+    # 1. Prim's algorithm in O(N^2) time starting from node 0
+    in_tree = np.zeros(N, dtype=bool)
+    in_tree[0] = True
+
+    min_weight = D[0].copy()
+    parent_node = np.zeros(N, dtype=int)
+
+    edges = []  # List of (weight, u, v)
+
+    for _ in range(N - 1):
+        # Mask out nodes already in the MST to find the cheapest outgoing edge
+        candidates = np.where(in_tree, np.inf, min_weight)
+        v = int(np.argmin(candidates))
+        w = float(min_weight[v])
+        u = int(parent_node[v])
+
+        in_tree[v] = True
+        edges.append((w, u, v))
+
+        # Update cheapest connections to the tree for all remaining outside nodes
+        # Only update where D[v, j] is strictly smaller than the current best min_weight[j]
+        better = (~in_tree) & (D[v] < min_weight)
+        min_weight[better] = D[v, better]
+        parent_node[better] = v
+
+    # 2. Sort the N - 1 MST edges by increasing weight (with deterministic tie-breaking)
+    edges.sort(key=lambda e: (e[0], min(e[1], e[2]), max(e[1], e[2])))
+
+    # 3. Process edges in order using Union-Find to build linkage matrix Z
+    uf_parent = list(range(2 * N))
+    cluster_size = np.ones(2 * N, dtype=float)
+
+    def find(i):
+        path = []
+        while uf_parent[i] != i:
+            path.append(i)
+            i = uf_parent[i]
+        for node in path:
+            uf_parent[node] = i
+        return i
+
+    Z = np.empty((N - 1, 4), dtype=float)
+
+    for t, (w, u, v) in enumerate(edges):
+        root_u = find(u)
+        root_v = find(v)
+
+        a, b = (root_u, root_v) if root_u < root_v else (root_v, root_u)
+        new_id = N + t
+        new_size = cluster_size[a] + cluster_size[b]
+
+        uf_parent[a] = new_id
+        uf_parent[b] = new_id
+        cluster_size[new_id] = new_size
+
+        Z[t] = [float(a), float(b), w, new_size]
+
+    return Z
+

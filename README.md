@@ -16,6 +16,7 @@ python scaffold.py
 - [x] **4.** cluster_scores
 - [x] **5.** agglomerate
 - [x] **6.** cut_tree
+- [x] **7.** single_link_mst
 
 ---
 
